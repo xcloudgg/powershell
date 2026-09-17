@@ -24,7 +24,7 @@ Import-Module GroupPolicy
 
 #region 1) DHCP
 $ServerIP   = "10.0.0.10"
-$ServerFQDN = "dc01.ad.vardeholm.no"
+$ServerFQDN = "dc01.ad.eikerikt.com"
 
 try {
     if (-not (Get-WindowsFeature DHCP).Installed) {
@@ -35,11 +35,11 @@ try {
     }
 
     # Scope for ansatte (VLAN 20)
-    if (-not (Get-DhcpServerv4Scope -ScopeId 10.10.20.0 -ErrorAction SilentlyContinue)) {
-        Add-DhcpServerv4Scope -Name "Ansatte" -StartRange 10.10.20.50 `
-            -EndRange 10.10.20.250 -SubnetMask 255.255.255.0 -State Active
-        Set-DhcpServerv4OptionValue -ScopeId 10.10.20.0 -Router 10.10.20.1 `
-            -DnsServer $ServerIP -DnsDomain "ad.vardeholm.no"
+    if (-not (Get-DhcpServerv4Scope -ScopeId 10.0.10.0 -ErrorAction SilentlyContinue)) {
+        Add-DhcpServerv4Scope -Name "Ansatte" -StartRange 10.0.10.50 `
+            -EndRange 10.0.10.250 -SubnetMask 255.255.255.0 -State Active
+        Set-DhcpServerv4OptionValue -ScopeId 10.0.10.0 -Router 10.10.20.1 `
+            -DnsServer $ServerIP -DnsDomain "ad.eikerikt.com"
     }
     # Scope for lager (VLAN 30)
     if (-not (Get-DhcpServerv4Scope -ScopeId 10.10.30.0 -ErrorAction SilentlyContinue)) {
