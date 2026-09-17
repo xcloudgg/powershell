@@ -1,6 +1,6 @@
 # 02-ADDS.ps1 - Installer AD DS + DNS og promoter til domenekontroller (ny skog)
-$DomeneNavn  = "ad.eikerikt.com"
-$NetBIOS     = "eIKT"
+$DomeneNavn  = "eikerikt.com"
+$NetBIOS     = "EIKT"
 $DSRMPassord = Read-Host "Hokksund" -AsSecureString
 
 try {
