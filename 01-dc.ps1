@@ -1,58 +1,41 @@
 #Requires -RunAsAdministrator
 <#
-    01-Boot1-Nettverk-Navn.ps1
+    02-Boot2-ADDS-Promotering.ps1
     -------------------------------------------------------------
-    Kjøres ved FØRSTE oppstart av en fersk Windows Server-installasjon,
-    før serveren er noe som helst (verken DC, DHCP eller filserver).
+    Kjøres etter restart fra boot 1 (navn og statisk IP er satt).
 
     Gjør:
-      - Setter statisk IP-adresse
-      - Endrer datamaskinnavn til dc01
+      - Installerer AD DS + DNS-rollene
+      - Promoterer serveren til domenekontroller i en ny skog
 
-    Navneendring krever restart for å tre fullt i kraft, så skriptet
-    restarter automatisk til slutt dersom navnet ble endret.
+    Install-ADDSForest restarter serveren AUTOMATISK når promoteringen
+    er ferdig - du trenger ikke restarte manuelt etter dette skriptet.
 
-    NESTE STEG (etter restart): 02-Boot2-ADDS-Promotering.ps1
+    NESTE STEG (etter automatisk restart):
+    03-Boot3-DHCP-AD-Deling-Skriver-GPO-Backup.ps1
     -------------------------------------------------------------
 #>
 
-$NyttNavn   = "dc01"
-$IPAdresse  = "10.0.0.10"
-$Prefiks    = 24
-$Gateway    = "10.0.0.1"
-$DNS        = "127.0.0.1"          # DC peker på seg selv etter DNS-installasjon i boot 2
-$IfAlias    = "Ethernet"           # Bytt til riktig adapternavn hvis nødvendig (se Get-NetAdapter)
-
-$restartKreves = $false
+$DomeneNavn  = "eikerikt.com"
+$NetBIOS     = "EIKER"
+$DSRMPassord = Read-Host "Oppgi DSRM-passord" -AsSecureString
 
 try {
-    # Statisk IP (idempotent)
-    if (-not (Get-NetIPAddress -IPAddress $IPAdresse -ErrorAction SilentlyContinue)) {
-        New-NetIPAddress -InterfaceAlias $IfAlias -IPAddress $IPAdresse `
-            -PrefixLength $Prefiks -DefaultGateway $Gateway -ErrorAction Stop
-        Set-DnsClientServerAddress -InterfaceAlias $IfAlias -ServerAddresses $DNS
-        Write-Host "Statisk IP satt: $IPAdresse"
-    } else {
-        Write-Host "IP allerede satt - hopper over."
+    if (-not (Get-WindowsFeature AD-Domain-Services).Installed) {
+        Install-WindowsFeature -Name AD-Domain-Services, DNS `
+            -IncludeManagementTools -ErrorAction Stop
     }
+    Import-Module ADDSDeployment
 
-    # Datamaskinnavn (idempotent)
-    if ($env:COMPUTERNAME -ne $NyttNavn) {
-        Rename-Computer -NewName $NyttNavn -Force -ErrorAction Stop
-        Write-Host "Navn endret til $NyttNavn. Restart kreves før neste skript."
-        $restartKreves = $true
-    } else {
-        Write-Host "Navn er allerede $NyttNavn - hopper over."
-    }
+    Install-ADDSForest `
+        -DomainName $DomeneNavn `
+        -DomainNetbiosName $NetBIOS `
+        -InstallDns `
+        -SafeModeAdministratorPassword $DSRMPassord `
+        -ForestMode "WinThreshold" `
+        -DomainMode "WinThreshold" `
+        -Force
+    # Serveren restarter automatisk etter vellykket promotering.
 } catch {
-    Write-Error "Feil i grunnoppsett (boot 1): $_"
-    return
-}
-
-if ($restartKreves) {
-    Write-Host "Restarter om 10 sekunder for at navneendringen skal tre i kraft ..."
-    Start-Sleep -Seconds 10
-    Restart-Computer -Force
-} else {
-    Write-Host "Boot 1 ferdig - ingen restart nødvendig. Klar for 02-Boot2-ADDS-Promotering.ps1."
+    Write-Error "Feil ved ADDS-promotering (boot 2): $_"
 }
